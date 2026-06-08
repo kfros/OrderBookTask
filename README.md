@@ -50,48 +50,45 @@ Optional positional arguments can override input, output, sample input, and samp
 6. Validate B0/A0 against `ticks_result_sample.csv` once implemented.
 7. Write `ticks_result.csv` outside benchmark timing.
 
-## Measured vs unmeasured work
+## Measured vs unmeasured scope
 
-The measured scope is only `OrderBookProcessor.Process`.
+The official measured scope is `BenchmarkRunner`, which measures both `processor.Reset()` and `processor.Process(...)`. 
+All other work, such as disk reading, binary parsing, console I/O, writing the CSV output, validation checks, and one-time allocations of arrays/processor objects, is unmeasured.
 
-Unmeasured work includes file reading, big-endian parsing, allocations, processor construction, CSV writing, sample validation, and console output.
+## B0/A0-only optimized mode
 
-## Optimized mode: B0/A0 only
+The implementation compiles and processes ticks in optimized B0/A0-only mode. It only tracks the top-of-book prices and does not compute order book depths or quantities at other levels.
 
-The final optimized implementation should compute only mandatory best bid (`B0`) and best ask (`A0`) values.
+## Why optional aggregate columns are empty
 
-## Why optional aggregates are empty
+The aggregate columns `BQ0`, `BN0`, `AQ0`, and `AN0` are left empty in the output CSV. Since the task only requires B0 and A0, computing these aggregate values would add substantial performance overhead (tracking quantities and order queues), which is avoided to minimize measured run time.
 
-`BQ0`, `BN0`, `AQ0`, and `AN0` remain in the CSV schema for compatibility, but optimized mode leaves them empty. The future implementation must avoid optional aggregate computation.
+## Why arrays are used
+
+We use dense arrays (`_bidCountByPrice` and `_askCountByPrice`) indexed by price value to store the number of active orders at each price. Because the maximum price is guaranteed to be small (`<= 2,000_000`), these arrays provide $O(1)$ updates and extremely fast sequential scans for repair, with no heap allocations or pointer-chasing during the hot path.
+
+## Why OrderId ordering is not modeled
+
+We do not maintain price-time queues or order priorities for each price level. Since we only need to track whether a price level has *any* active orders (count > 0) to compute the top of the book, keeping a simple count of active orders per price is sufficient.
 
 ## Price 0 handling
 
-Price `0` is valid. The internal empty best-price sentinel is `-1`, and only `-1` is written as an empty CSV field. A real price of `0` must be written as `0`.
+Price `0` is a valid price in the dataset and is represented as `0`. We use `-1` as the internal sentinel for empty/no best price. If the best price is `-1`, it is written as an empty field in the output CSV, whereas a real price of `0` is written as `0`.
 
-## Validation strategy
+## Clear strategy trade-off
 
-Decoded input validation should compare the first 2,000 rows against `ticks_sample.csv` using `SourceTime`, `Side`, `Action`, `OrderId`, `Price`, and `Qty`.
+When a clear action (`'Y'` or `'F'`) is encountered, we call `ClearBook()`. It uses `Array.Clear` to reset the price arrays. This is the baseline clear strategy. It is isolated in `ClearBook()`, which allows swapping it for a touched-price index list or generation-based clears in the future if the price arrays become significantly larger.
 
-Optimized result validation should compare original fields plus `B0` and `A0` against `ticks_result_sample.csv`. It must ignore `BQ0`, `BN0`, `AQ0`, and `AN0`.
+## Validation methodology
 
-## Benchmark strategy
+We validate both the decoded binary ticks and the optimized B0/A0 results against `ticks_sample.csv` and `ticks_result_sample.csv` for the first 1,999 data rows (data rows 0 to 1998, excluding the CSV header). This ensures the parser and order book logic are completely correct before running the benchmark.
 
-The benchmark runner calls `Reset` before every warmup and measured pass. The stopwatch starts immediately before `Process` and stops immediately after it returns. It prints all measured timings plus best `ms`, `us/tick`, and `ns/tick`.
+## Benchmark methodology
 
-Do not call `GC.Collect` inside measured timing, and do not rely on the first input tick being `F` or `Y`.
+Warmup runs JIT-compile the code and expand the dictionary capacity. The official stopwatch wraps both `Reset()` (which clears the book state without reallocating) and `Process(...)`. We report all measured runs and calculate microseconds per tick and nanoseconds per tick with decimal precision.
 
-## Implementation TODOs for the next agent
+## Further optimizations
 
-- Implement `OrderBookProcessor.Reset`.
-- Implement `OrderBookProcessor.Process` using price-level count arrays and an OrderId index.
-- Implement decoded input validation in `SampleValidator`.
-- Implement optimized B0/A0 sample validation in `SampleValidator`.
-- Enable validation calls in `Program.cs`.
-- Keep optional aggregate columns empty in optimized mode.
-
-## Further optimization candidates
-
-- Use dense price-level count arrays while `MaxPrice <= Constants.MaxAllowedPrice`.
-- Use a compact OrderId index appropriate for the observed id range.
-- Preserve sequential single-threaded processing.
-- Consider a documented sparse fallback only if future datasets exceed the configured price threshold.
+- **Custom Hash Map**: Replacing the standard .NET `Dictionary<long, OrderState>` with a flat, open-addressed hash map optimized for `long` keys to eliminate lookup overhead.
+- **Touched-Price Clear**: Tracking which price indices were modified and only clearing those indices during resets/clears, avoiding the cost of scanning/clearing the entire array.
+- **Sparse Fallback**: Implementing a sparse map fallback structure only if future datasets exceed the maximum allowed price threshold.

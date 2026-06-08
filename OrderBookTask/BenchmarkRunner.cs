@@ -21,9 +21,8 @@ internal sealed class BenchmarkRunner
         var timings = new TimeSpan[measuredRuns];
         for (var i = 0; i < measuredRuns; i++)
         {
-            processor.Reset();
-
             var stopwatch = Stopwatch.StartNew();
+            processor.Reset();
             processor.Process(ticks, bestBidByTick, bestAskByTick);
             stopwatch.Stop();
 

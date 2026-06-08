@@ -1,32 +1,196 @@
+using System;
+using System.Collections.Generic;
+
 namespace OrderBookTask;
 
 internal sealed class OrderBookProcessor
 {
+    private readonly Dictionary<long, OrderState> _activeOrders;
+    private readonly int[] _bidCountByPrice;
+    private readonly int[] _askCountByPrice;
     private readonly int _maxPrice;
-    private readonly int _expectedOrderCapacity;
+    private int _bestBid;
+    private int _bestAsk;
 
     public OrderBookProcessor(int maxPrice, int expectedOrderCapacity)
     {
         _maxPrice = maxPrice;
-        _expectedOrderCapacity = expectedOrderCapacity;
+        _activeOrders = new Dictionary<long, OrderState>(expectedOrderCapacity);
+        _bidCountByPrice = new int[maxPrice + 1];
+        _askCountByPrice = new int[maxPrice + 1];
+        _bestBid = -1;
+        _bestAsk = -1;
     }
 
     public void Reset()
     {
-        // TODO: Clear future price-level count arrays and OrderId index.
-        // Reset must not depend on the first input tick being F/Y.
+        ClearBook();
+    }
+
+    private void ClearBook()
+    {
+        _activeOrders.Clear();
+        Array.Clear(_bidCountByPrice, 0, _bidCountByPrice.Length);
+        Array.Clear(_askCountByPrice, 0, _askCountByPrice.Length);
+        _bestBid = -1;
+        _bestAsk = -1;
     }
 
     public void Process(Tick[] ticks, int[] bestBidByTick, int[] bestAskByTick)
     {
-        _ = ticks;
-        _ = bestBidByTick;
-        _ = bestAskByTick;
-        _ = _maxPrice;
-        _ = _expectedOrderCapacity;
+        for (var i = 0; i < ticks.Length; i++)
+        {
+            ref readonly var tick = ref ticks[i];
+            var action = tick.Action;
 
-        // TODO: Implement optimized B0/A0-only build in the next phase.
-        // Do not compute BQ0, BN0, AQ0, or AN0 here.
-        throw new NotImplementedException("Order book hot-path processing is intentionally not implemented in this scaffold.");
+            if (action == Constants.ActionClearY || action == Constants.ActionClearF)
+            {
+                ClearBook();
+            }
+            else if (action == Constants.ActionAdd || action == Constants.ActionModify)
+            {
+                ProcessUpsert(tick.OrderId, tick.Side, tick.Price);
+            }
+            else if (action == Constants.ActionDelete)
+            {
+                ProcessDelete(tick.OrderId);
+            }
+
+            bestBidByTick[i] = _bestBid;
+            bestAskByTick[i] = _bestAsk;
+        }
+    }
+
+    private void ProcessUpsert(long orderId, byte newSide, int newPrice)
+    {
+        if (_activeOrders.TryGetValue(orderId, out var oldState))
+        {
+            var oldSide = oldState.Side;
+            var oldPrice = oldState.Price;
+
+            var needRepairOldBid = false;
+            var needRepairOldAsk = false;
+
+            if (oldSide == Constants.SideBid)
+            {
+                _bidCountByPrice[oldPrice]--;
+                if (_bidCountByPrice[oldPrice] == 0 && oldPrice == _bestBid)
+                {
+                    needRepairOldBid = true;
+                }
+            }
+            else if (oldSide == Constants.SideAsk)
+            {
+                _askCountByPrice[oldPrice]--;
+                if (_askCountByPrice[oldPrice] == 0 && oldPrice == _bestAsk)
+                {
+                    needRepairOldAsk = true;
+                }
+            }
+
+            _activeOrders[orderId] = new OrderState(newSide, newPrice);
+
+            if (newSide == Constants.SideBid)
+            {
+                _bidCountByPrice[newPrice]++;
+                if (newPrice > _bestBid)
+                {
+                    _bestBid = newPrice;
+                }
+            }
+            else if (newSide == Constants.SideAsk)
+            {
+                _askCountByPrice[newPrice]++;
+                if (_bestAsk == -1 || newPrice < _bestAsk)
+                {
+                    _bestAsk = newPrice;
+                }
+            }
+
+            if (needRepairOldBid)
+            {
+                if (_bestBid == oldPrice && _bidCountByPrice[oldPrice] == 0)
+                {
+                    var p = oldPrice - 1;
+                    while (p >= 0 && _bidCountByPrice[p] == 0)
+                    {
+                        p--;
+                    }
+                    _bestBid = p;
+                }
+            }
+
+            if (needRepairOldAsk)
+            {
+                if (_bestAsk == oldPrice && _askCountByPrice[oldPrice] == 0)
+                {
+                    var p = oldPrice + 1;
+                    while (p <= _maxPrice && _askCountByPrice[p] == 0)
+                    {
+                        p++;
+                    }
+                    _bestAsk = (p > _maxPrice) ? -1 : p;
+                }
+            }
+        }
+        else
+        {
+            _activeOrders[orderId] = new OrderState(newSide, newPrice);
+
+            if (newSide == Constants.SideBid)
+            {
+                _bidCountByPrice[newPrice]++;
+                if (newPrice > _bestBid)
+                {
+                    _bestBid = newPrice;
+                }
+            }
+            else if (newSide == Constants.SideAsk)
+            {
+                _askCountByPrice[newPrice]++;
+                if (_bestAsk == -1 || newPrice < _bestAsk)
+                {
+                    _bestAsk = newPrice;
+                }
+            }
+        }
+    }
+
+    private void ProcessDelete(long orderId)
+    {
+        if (!_activeOrders.Remove(orderId, out var state))
+        {
+            return;
+        }
+
+        var side = state.Side;
+        var price = state.Price;
+
+        if (side == Constants.SideBid)
+        {
+            _bidCountByPrice[price]--;
+            if (_bidCountByPrice[price] == 0 && price == _bestBid)
+            {
+                var p = price - 1;
+                while (p >= 0 && _bidCountByPrice[p] == 0)
+                {
+                    p--;
+                }
+                _bestBid = p;
+            }
+        }
+        else if (side == Constants.SideAsk)
+        {
+            _askCountByPrice[price]--;
+            if (_askCountByPrice[price] == 0 && price == _bestAsk)
+            {
+                var p = price + 1;
+                while (p <= _maxPrice && _askCountByPrice[p] == 0)
+                {
+                    p++;
+                }
+                _bestAsk = (p > _maxPrice) ? -1 : p;
+            }
+        }
     }
 }

@@ -27,6 +27,11 @@ internal sealed class RawTickReader
             var price = BinaryPrimitives.ReadInt32BigEndian(bytes.AsSpan(offset + 18, 4));
             var qty = BinaryPrimitives.ReadInt32BigEndian(bytes.AsSpan(offset + 22, 4));
 
+            if (price < 0)
+            {
+                throw new InvalidDataException($"Negative price {price} is invalid.");
+            }
+
             ticks[i] = new Tick(sourceTime, side, action, orderId, price, qty);
             if (price > maxPrice)
             {

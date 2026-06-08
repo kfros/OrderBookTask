@@ -4,7 +4,7 @@ const string inputFileName = "ticks.raw";
 const string outputFileName = "ticks_result.csv";
 const string sampleInputFileName = "ticks_sample.csv";
 const string sampleResultFileName = "ticks_result_sample.csv";
-const int sampleRows = 2_000;
+const int sampleRows = 1_999;
 const int warmupRuns = 1;
 const int measuredRuns = 3;
 
@@ -35,8 +35,7 @@ var validator = new SampleValidator();
 if (File.Exists(sampleInputPath))
 {
     Console.WriteLine($"Decoded input validation available for the first {sampleRows} rows: {sampleInputPath}");
-    // TODO: Enable after SampleValidator is implemented.
-    // validator.ValidateDecodedInput(sampleInputPath, readResult.Ticks, sampleRows);
+    validator.ValidateDecodedInput(sampleInputPath, readResult.Ticks, sampleRows);
 }
 
 var processor = new OrderBookProcessor(readResult.MaxPrice, readResult.TickCount);
@@ -52,8 +51,7 @@ var benchmark = benchmarkRunner.Run(
 if (File.Exists(sampleResultPath))
 {
     Console.WriteLine($"Optimized result validation available: {sampleResultPath}");
-    // TODO: Enable after OrderBookProcessor.Process and SampleValidator are implemented.
-    // validator.ValidateOptimizedResult(sampleResultPath, readResult.Ticks, bestBidByTick, bestAskByTick, sampleRows);
+    validator.ValidateOptimizedResult(sampleResultPath, readResult.Ticks, bestBidByTick, bestAskByTick, sampleRows);
 }
 
 var writer = new CsvResultWriter();
