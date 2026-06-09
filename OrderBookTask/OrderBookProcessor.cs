@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 
 namespace OrderBookTask;
 
@@ -8,7 +10,11 @@ internal sealed class OrderBookProcessor
     private readonly Dictionary<long, OrderState> _activeOrders;
     private readonly int[] _bidCountByPrice;
     private readonly int[] _askCountByPrice;
+    private readonly int[] _touchedBidPrices;
+    private readonly int[] _touchedAskPrices;
     private readonly int _maxPrice;
+    private int _touchedBidCount;
+    private int _touchedAskCount;
     private int _bestBid;
     private int _bestAsk;
 
@@ -18,6 +24,10 @@ internal sealed class OrderBookProcessor
         _activeOrders = new Dictionary<long, OrderState>(expectedOrderCapacity);
         _bidCountByPrice = new int[maxPrice + 1];
         _askCountByPrice = new int[maxPrice + 1];
+        _touchedBidPrices = new int[expectedOrderCapacity];
+        _touchedAskPrices = new int[expectedOrderCapacity];
+        _touchedBidCount = 0;
+        _touchedAskCount = 0;
         _bestBid = -1;
         _bestAsk = -1;
     }
@@ -27,11 +37,22 @@ internal sealed class OrderBookProcessor
         ClearBook();
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private void ClearBook()
     {
         _activeOrders.Clear();
-        Array.Clear(_bidCountByPrice, 0, _bidCountByPrice.Length);
-        Array.Clear(_askCountByPrice, 0, _askCountByPrice.Length);
+        for (var i = 0; i < _touchedBidCount; i++)
+        {
+            _bidCountByPrice[_touchedBidPrices[i]] = 0;
+        }
+        _touchedBidCount = 0;
+
+        for (var i = 0; i < _touchedAskCount; i++)
+        {
+            _askCountByPrice[_touchedAskPrices[i]] = 0;
+        }
+        _touchedAskCount = 0;
+
         _bestBid = -1;
         _bestAsk = -1;
     }
@@ -43,11 +64,7 @@ internal sealed class OrderBookProcessor
             ref readonly var tick = ref ticks[i];
             var action = tick.Action;
 
-            if (action == Constants.ActionClearY || action == Constants.ActionClearF)
-            {
-                ClearBook();
-            }
-            else if (action == Constants.ActionAdd || action == Constants.ActionModify)
+            if (action == Constants.ActionAdd)
             {
                 ProcessUpsert(tick.OrderId, tick.Side, tick.Price);
             }
@@ -55,16 +72,27 @@ internal sealed class OrderBookProcessor
             {
                 ProcessDelete(tick.OrderId);
             }
+            else if (action == Constants.ActionModify)
+            {
+                ProcessUpsert(tick.OrderId, tick.Side, tick.Price);
+            }
+            else if (action == Constants.ActionClearY || action == Constants.ActionClearF)
+            {
+                ClearBook();
+            }
 
             bestBidByTick[i] = _bestBid;
             bestAskByTick[i] = _bestAsk;
         }
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private void ProcessUpsert(long orderId, byte newSide, int newPrice)
     {
-        if (_activeOrders.TryGetValue(orderId, out var oldState))
+        ref var stateRef = ref CollectionsMarshal.GetValueRefOrAddDefault(_activeOrders, orderId, out var exists);
+        if (exists)
         {
+            var oldState = stateRef;
             var oldSide = oldState.Side;
             var oldPrice = oldState.Price;
 
@@ -88,10 +116,14 @@ internal sealed class OrderBookProcessor
                 }
             }
 
-            _activeOrders[orderId] = new OrderState(newSide, newPrice);
+            stateRef = new OrderState(newSide, newPrice);
 
             if (newSide == Constants.SideBid)
             {
+                if (_bidCountByPrice[newPrice] == 0)
+                {
+                    _touchedBidPrices[_touchedBidCount++] = newPrice;
+                }
                 _bidCountByPrice[newPrice]++;
                 if (newPrice > _bestBid)
                 {
@@ -100,6 +132,10 @@ internal sealed class OrderBookProcessor
             }
             else if (newSide == Constants.SideAsk)
             {
+                if (_askCountByPrice[newPrice] == 0)
+                {
+                    _touchedAskPrices[_touchedAskCount++] = newPrice;
+                }
                 _askCountByPrice[newPrice]++;
                 if (_bestAsk == -1 || newPrice < _bestAsk)
                 {
@@ -135,10 +171,14 @@ internal sealed class OrderBookProcessor
         }
         else
         {
-            _activeOrders[orderId] = new OrderState(newSide, newPrice);
+            stateRef = new OrderState(newSide, newPrice);
 
             if (newSide == Constants.SideBid)
             {
+                if (_bidCountByPrice[newPrice] == 0)
+                {
+                    _touchedBidPrices[_touchedBidCount++] = newPrice;
+                }
                 _bidCountByPrice[newPrice]++;
                 if (newPrice > _bestBid)
                 {
@@ -147,6 +187,10 @@ internal sealed class OrderBookProcessor
             }
             else if (newSide == Constants.SideAsk)
             {
+                if (_askCountByPrice[newPrice] == 0)
+                {
+                    _touchedAskPrices[_touchedAskCount++] = newPrice;
+                }
                 _askCountByPrice[newPrice]++;
                 if (_bestAsk == -1 || newPrice < _bestAsk)
                 {
@@ -156,6 +200,7 @@ internal sealed class OrderBookProcessor
         }
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private void ProcessDelete(long orderId)
     {
         if (!_activeOrders.Remove(orderId, out var state))

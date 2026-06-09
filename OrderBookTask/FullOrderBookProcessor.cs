@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 
 namespace OrderBookTask;
 
@@ -10,7 +12,11 @@ internal sealed class FullOrderBookProcessor
     private readonly int[] _bidQtyByPrice;
     private readonly int[] _askCountByPrice;
     private readonly int[] _askQtyByPrice;
+    private readonly int[] _touchedBidPrices;
+    private readonly int[] _touchedAskPrices;
     private readonly int _maxPrice;
+    private int _touchedBidCount;
+    private int _touchedAskCount;
     private int _bestBid;
     private int _bestAsk;
 
@@ -22,6 +28,10 @@ internal sealed class FullOrderBookProcessor
         _bidQtyByPrice = new int[maxPrice + 1];
         _askCountByPrice = new int[maxPrice + 1];
         _askQtyByPrice = new int[maxPrice + 1];
+        _touchedBidPrices = new int[expectedOrderCapacity];
+        _touchedAskPrices = new int[expectedOrderCapacity];
+        _touchedBidCount = 0;
+        _touchedAskCount = 0;
         _bestBid = -1;
         _bestAsk = -1;
     }
@@ -31,13 +41,26 @@ internal sealed class FullOrderBookProcessor
         ClearBook();
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private void ClearBook()
     {
         _activeOrders.Clear();
-        Array.Clear(_bidCountByPrice, 0, _bidCountByPrice.Length);
-        Array.Clear(_bidQtyByPrice, 0, _bidQtyByPrice.Length);
-        Array.Clear(_askCountByPrice, 0, _askCountByPrice.Length);
-        Array.Clear(_askQtyByPrice, 0, _askQtyByPrice.Length);
+        for (var i = 0; i < _touchedBidCount; i++)
+        {
+            var p = _touchedBidPrices[i];
+            _bidCountByPrice[p] = 0;
+            _bidQtyByPrice[p] = 0;
+        }
+        _touchedBidCount = 0;
+
+        for (var i = 0; i < _touchedAskCount; i++)
+        {
+            var p = _touchedAskPrices[i];
+            _askCountByPrice[p] = 0;
+            _askQtyByPrice[p] = 0;
+        }
+        _touchedAskCount = 0;
+
         _bestBid = -1;
         _bestAsk = -1;
     }
@@ -49,17 +72,21 @@ internal sealed class FullOrderBookProcessor
             ref readonly var tick = ref ticks[i];
             var action = tick.Action;
 
-            if (action == Constants.ActionClearY || action == Constants.ActionClearF)
-            {
-                ClearBook();
-            }
-            else if (action == Constants.ActionAdd || action == Constants.ActionModify)
+            if (action == Constants.ActionAdd)
             {
                 ProcessUpsert(tick.OrderId, tick.Side, tick.Price, tick.Qty);
             }
             else if (action == Constants.ActionDelete)
             {
                 ProcessDelete(tick.OrderId);
+            }
+            else if (action == Constants.ActionModify)
+            {
+                ProcessUpsert(tick.OrderId, tick.Side, tick.Price, tick.Qty);
+            }
+            else if (action == Constants.ActionClearY || action == Constants.ActionClearF)
+            {
+                ClearBook();
             }
 
             if (_bestBid == -1)
@@ -90,10 +117,13 @@ internal sealed class FullOrderBookProcessor
         }
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private void ProcessUpsert(long orderId, byte newSide, int newPrice, int newQty)
     {
-        if (_activeOrders.TryGetValue(orderId, out var oldState))
+        ref var stateRef = ref CollectionsMarshal.GetValueRefOrAddDefault(_activeOrders, orderId, out var exists);
+        if (exists)
         {
+            var oldState = stateRef;
             var oldSide = oldState.Side;
             var oldPrice = oldState.Price;
             var oldQty = oldState.Qty;
@@ -120,10 +150,14 @@ internal sealed class FullOrderBookProcessor
                 }
             }
 
-            _activeOrders[orderId] = new FullOrderState(newSide, newPrice, newQty);
+            stateRef = new FullOrderState(newSide, newPrice, newQty);
 
             if (newSide == Constants.SideBid)
             {
+                if (_bidCountByPrice[newPrice] == 0)
+                {
+                    _touchedBidPrices[_touchedBidCount++] = newPrice;
+                }
                 _bidCountByPrice[newPrice]++;
                 _bidQtyByPrice[newPrice] += newQty;
                 if (newPrice > _bestBid)
@@ -133,6 +167,10 @@ internal sealed class FullOrderBookProcessor
             }
             else if (newSide == Constants.SideAsk)
             {
+                if (_askCountByPrice[newPrice] == 0)
+                {
+                    _touchedAskPrices[_touchedAskCount++] = newPrice;
+                }
                 _askCountByPrice[newPrice]++;
                 _askQtyByPrice[newPrice] += newQty;
                 if (_bestAsk == -1 || newPrice < _bestAsk)
@@ -169,10 +207,14 @@ internal sealed class FullOrderBookProcessor
         }
         else
         {
-            _activeOrders[orderId] = new FullOrderState(newSide, newPrice, newQty);
+            stateRef = new FullOrderState(newSide, newPrice, newQty);
 
             if (newSide == Constants.SideBid)
             {
+                if (_bidCountByPrice[newPrice] == 0)
+                {
+                    _touchedBidPrices[_touchedBidCount++] = newPrice;
+                }
                 _bidCountByPrice[newPrice]++;
                 _bidQtyByPrice[newPrice] += newQty;
                 if (newPrice > _bestBid)
@@ -182,6 +224,10 @@ internal sealed class FullOrderBookProcessor
             }
             else if (newSide == Constants.SideAsk)
             {
+                if (_askCountByPrice[newPrice] == 0)
+                {
+                    _touchedAskPrices[_touchedAskCount++] = newPrice;
+                }
                 _askCountByPrice[newPrice]++;
                 _askQtyByPrice[newPrice] += newQty;
                 if (_bestAsk == -1 || newPrice < _bestAsk)
@@ -192,6 +238,7 @@ internal sealed class FullOrderBookProcessor
         }
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private void ProcessDelete(long orderId)
     {
         if (!_activeOrders.Remove(orderId, out var state))
