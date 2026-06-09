@@ -1,3 +1,5 @@
+using System;
+
 namespace OrderBookTask;
 
 internal sealed class BenchmarkResult
@@ -11,9 +13,28 @@ internal sealed class BenchmarkResult
     public TimeSpan[] MeasuredRuns { get; }
     public int TickCount { get; }
 
-    public TimeSpan BestElapsed => MeasuredRuns.Length == 0
-        ? TimeSpan.Zero
-        : MeasuredRuns.Min();
+    public TimeSpan BestElapsed
+    {
+        get
+        {
+            if (MeasuredRuns == null || MeasuredRuns.Length == 0)
+            {
+                return TimeSpan.Zero;
+            }
+
+            var min = MeasuredRuns[0];
+            for (var i = 1; i < MeasuredRuns.Length; i++)
+            {
+                if (MeasuredRuns[i] < min)
+                {
+                    min = MeasuredRuns[i];
+                }
+            }
+            return min;
+        }
+    }
+
+    public double BestMicroseconds => BestElapsed.TotalMicroseconds;
 
     public double BestMicrosecondsPerTick => TickCount == 0
         ? 0

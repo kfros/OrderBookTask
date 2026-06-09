@@ -32,6 +32,59 @@ internal sealed class CsvResultWriter
         }
     }
 
+    public void WriteFull(string outputPath, Tick[] ticks, FullResultArrays results)
+    {
+        using var writer = new StreamWriter(outputPath);
+        writer.WriteLine(Constants.OutputHeader);
+
+        for (var i = 0; i < ticks.Length; i++)
+        {
+            var tick = ticks[i];
+            writer.Write(tick.SourceTime.ToString(CultureInfo.InvariantCulture));
+            writer.Write(';');
+            writer.Write(FormatByte(tick.Side));
+            writer.Write(';');
+            writer.Write(FormatByte(tick.Action));
+            writer.Write(';');
+            writer.Write(tick.OrderId.ToString(CultureInfo.InvariantCulture));
+            writer.Write(';');
+            writer.Write(tick.Price.ToString(CultureInfo.InvariantCulture));
+            writer.Write(';');
+            writer.Write(tick.Qty.ToString(CultureInfo.InvariantCulture));
+            writer.Write(';');
+
+            var b0 = results.BestBidByTick[i];
+            if (b0 == Constants.EmptyPriceSentinel)
+            {
+                writer.Write(";;;");
+            }
+            else
+            {
+                writer.Write(b0.ToString(CultureInfo.InvariantCulture));
+                writer.Write(';');
+                writer.Write(results.BestBidQtyByTick[i].ToString(CultureInfo.InvariantCulture));
+                writer.Write(';');
+                writer.Write(results.BestBidCountByTick[i].ToString(CultureInfo.InvariantCulture));
+                writer.Write(';');
+            }
+
+            var a0 = results.BestAskByTick[i];
+            if (a0 == Constants.EmptyPriceSentinel)
+            {
+                writer.Write(";;");
+            }
+            else
+            {
+                writer.Write(a0.ToString(CultureInfo.InvariantCulture));
+                writer.Write(';');
+                writer.Write(results.BestAskQtyByTick[i].ToString(CultureInfo.InvariantCulture));
+                writer.Write(';');
+                writer.Write(results.BestAskCountByTick[i].ToString(CultureInfo.InvariantCulture));
+            }
+            writer.WriteLine();
+        }
+    }
+
     private static string FormatByte(byte value) => value == 0 ? string.Empty : ((char)value).ToString();
 
     private static string FormatPrice(int price) =>

@@ -31,4 +31,31 @@ internal sealed class BenchmarkRunner
 
         return new BenchmarkResult(timings, ticks.Length);
     }
+
+    public BenchmarkResult Run(
+        FullOrderBookProcessor processor,
+        Tick[] ticks,
+        FullResultArrays results,
+        int warmupRuns,
+        int measuredRuns)
+    {
+        for (var i = 0; i < warmupRuns; i++)
+        {
+            processor.Reset();
+            processor.Process(ticks, results);
+        }
+
+        var timings = new TimeSpan[measuredRuns];
+        for (var i = 0; i < measuredRuns; i++)
+        {
+            var stopwatch = Stopwatch.StartNew();
+            processor.Reset();
+            processor.Process(ticks, results);
+            stopwatch.Stop();
+
+            timings[i] = stopwatch.Elapsed;
+        }
+
+        return new BenchmarkResult(timings, ticks.Length);
+    }
 }
