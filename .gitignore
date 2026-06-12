@@ -3,3 +3,4 @@
 *.cache
 OrderBookTask/bin/*
 OrderBookTask/obj/*
+.fake

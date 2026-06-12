@@ -5,4 +5,9 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
   </PropertyGroup>
+  <ItemGroup>
+  <None Include="ticks.raw" CopyToOutputDirectory="PreserveNewest" />
+  <None Include="ticks_sample.csv" CopyToOutputDirectory="PreserveNewest" />
+  <None Include="ticks_result_sample.csv" CopyToOutputDirectory="PreserveNewest" />
+</ItemGroup>
 </Project>

@@ -2,9 +2,15 @@ namespace OrderBookTask;
 
 internal static class Constants
 {
+    public const string DefaultInputFileName = "ticks.raw";
+    public const string DefaultOutputFileName = "ticks_result.csv";
+
     public const int RecordSizeBytes = 26;
     public const int EmptyPriceSentinel = -1;
     public const int MaxAllowedPrice = 2_000_000;
+
+    public const long ValidBookSourceTimeFrom = 24_300_006_000L;
+    public const long ValidBookSourceTimeTo = 53_400_000_000L;
 
     public const byte SideBid = (byte)'1';
     public const byte SideAsk = (byte)'2';

@@ -4,8 +4,9 @@ using System.Globalization;
 using System.IO;
 using OrderBookTask;
 
-// Parse named options (--mode <optimized|full>) first, then map remaining args to file paths
+// Parse named options (--mode <optimized|full>, --input <path>, -i <path>) first, then map remaining args to file paths
 var mode = "optimized";
+string? explicitInputPath = null;
 var positionalArgsList = new List<string>();
 
 for (var i = 0; i < args.Length; i++)
@@ -22,6 +23,22 @@ for (var i = 0; i < args.Length; i++)
             throw new ArgumentException("Missing value for --mode option.");
         }
     }
+    else if (args[i] == "--input" || args[i] == "-i")
+    {
+        if (i + 1 < args.Length)
+        {
+            explicitInputPath = args[i + 1];
+            i++;
+        }
+        else
+        {
+            throw new ArgumentException("--input was provided without a file path.");
+        }
+    }
+    else if (args[i].StartsWith("-"))
+    {
+        throw new ArgumentException($"Unknown argument '{args[i]}'.");
+    }
     else
     {
         positionalArgsList.Add(args[i]);
@@ -37,8 +54,6 @@ if (mode != "optimized" && mode != "full")
 
 Console.WriteLine($"Mode: {mode}");
 
-const string inputFileName = "ticks.raw";
-const string outputFileName = "ticks_result.csv";
 const string sampleInputFileName = "ticks_sample.csv";
 const string sampleResultFileName = "ticks_result_sample.csv";
 const int sampleRows = 1_999;
@@ -46,8 +61,33 @@ const int warmupRuns = 1;
 const int measuredRuns = 5;
 
 var baseDirectory = AppContext.BaseDirectory;
-var inputPath = ResolvePath(positionalArgs, 0, inputFileName, baseDirectory);
-var outputPath = ResolvePath(positionalArgs, 1, outputFileName, baseDirectory);
+
+string inputPath;
+if (explicitInputPath != null)
+{
+    inputPath = Path.GetFullPath(explicitInputPath);
+    if (!File.Exists(inputPath))
+    {
+        Console.Error.WriteLine("Input file was not found.");
+        Console.Error.WriteLine($"Provided path: {inputPath}");
+        Console.Error.WriteLine("Check the path or place ticks.raw next to the executable.");
+        return 1;
+    }
+}
+else
+{
+    inputPath = Path.Combine(baseDirectory, Constants.DefaultInputFileName);
+    if (!File.Exists(inputPath))
+    {
+        Console.Error.WriteLine("ticks.raw was not found.");
+        Console.Error.WriteLine($"Expected default location: {baseDirectory}");
+        Console.Error.WriteLine("Place ticks.raw next to OrderBookTask.exe or pass --input <path>.");
+        Console.Error.WriteLine(@"Example: OrderBookTask.exe --input C:\path\to\ticks.raw");
+        return 1;
+    }
+}
+
+var outputPath = ResolvePath(positionalArgs, 1, Constants.DefaultOutputFileName, baseDirectory);
 var sampleInputPath = ResolvePath(positionalArgs, 2, sampleInputFileName, baseDirectory);
 var sampleResultPath = ResolvePath(positionalArgs, 3, sampleResultFileName, baseDirectory);
 
@@ -108,6 +148,10 @@ if (mode == "optimized")
         Console.WriteLine("Optimized result validation: SKIPPED");
     }
 
+    var invariantValidator = new BookInvariantValidator();
+    var checkedRows = invariantValidator.ValidateValidBookInterval(readResult.Ticks, bestBidByTick, bestAskByTick);
+    Console.WriteLine($"Book interval invariant validation: PASSED ({checkedRows} rows checked)");
+
     writer.Write(outputPath, readResult.Ticks, bestBidByTick, bestAskByTick);
 }
 else // mode == "full"
@@ -133,10 +177,16 @@ else // mode == "full"
         Console.WriteLine("Full result validation: SKIPPED");
     }
 
+    var invariantValidator = new BookInvariantValidator();
+    var checkedRows = invariantValidator.ValidateValidBookInterval(readResult.Ticks, results);
+    Console.WriteLine($"Book interval invariant validation: PASSED ({checkedRows} rows checked)");
+
     writer.WriteFull(outputPath, readResult.Ticks, results);
 }
 
 Console.WriteLine($"Wrote {outputPath}");
+
+return 0;
 
 static string ResolvePath(string[] args, int index, string fileName, string baseDirectory)
 {
