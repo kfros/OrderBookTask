@@ -7,7 +7,7 @@ namespace OrderBookTask;
 
 internal sealed class OrderBookProcessor
 {
-    private readonly LongStateMap<OrderState> _activeOrders;
+    private readonly LongStateMap<int> _activeOrders;
     private readonly int[] _bidCountByPrice;
     private readonly int[] _askCountByPrice;
     private readonly int[] _touchedBidPrices;
@@ -21,7 +21,7 @@ internal sealed class OrderBookProcessor
     public OrderBookProcessor(int maxPrice, int expectedOrderCapacity)
     {
         _maxPrice = maxPrice;
-        _activeOrders = new LongStateMap<OrderState>(expectedOrderCapacity);
+        _activeOrders = new LongStateMap<int>(expectedOrderCapacity);
         _bidCountByPrice = new int[maxPrice + 1];
         _askCountByPrice = new int[maxPrice + 1];
         _touchedBidPrices = new int[expectedOrderCapacity];
@@ -93,13 +93,13 @@ internal sealed class OrderBookProcessor
         if (exists)
         {
             var oldState = stateRef;
-            var oldSide = oldState.Side;
-            var oldPrice = oldState.Price;
+            var isAsk = StatePacker.IsOptimizedAsk(oldState);
+            var oldPrice = StatePacker.GetOptimizedPrice(oldState);
 
             var needRepairOldBid = false;
             var needRepairOldAsk = false;
 
-            if (oldSide == Constants.SideBid)
+            if (!isAsk)
             {
                 _bidCountByPrice[oldPrice]--;
                 if (_bidCountByPrice[oldPrice] == 0 && oldPrice == _bestBid)
@@ -107,7 +107,7 @@ internal sealed class OrderBookProcessor
                     needRepairOldBid = true;
                 }
             }
-            else if (oldSide == Constants.SideAsk)
+            else
             {
                 _askCountByPrice[oldPrice]--;
                 if (_askCountByPrice[oldPrice] == 0 && oldPrice == _bestAsk)
@@ -116,7 +116,7 @@ internal sealed class OrderBookProcessor
                 }
             }
 
-            stateRef = new OrderState(newSide, newPrice);
+            stateRef = StatePacker.PackOptimizedState(newSide, newPrice);
 
             if (newSide == Constants.SideBid)
             {
@@ -171,7 +171,7 @@ internal sealed class OrderBookProcessor
         }
         else
         {
-            stateRef = new OrderState(newSide, newPrice);
+            stateRef = StatePacker.PackOptimizedState(newSide, newPrice);
 
             if (newSide == Constants.SideBid)
             {
@@ -208,10 +208,10 @@ internal sealed class OrderBookProcessor
             return;
         }
 
-        var side = state.Side;
-        var price = state.Price;
+        var isAsk = StatePacker.IsOptimizedAsk(state);
+        var price = StatePacker.GetOptimizedPrice(state);
 
-        if (side == Constants.SideBid)
+        if (!isAsk)
         {
             _bidCountByPrice[price]--;
             if (_bidCountByPrice[price] == 0 && price == _bestBid)
@@ -224,7 +224,7 @@ internal sealed class OrderBookProcessor
                 _bestBid = p;
             }
         }
-        else if (side == Constants.SideAsk)
+        else
         {
             _askCountByPrice[price]--;
             if (_askCountByPrice[price] == 0 && price == _bestAsk)

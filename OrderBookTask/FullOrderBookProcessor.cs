@@ -7,7 +7,7 @@ namespace OrderBookTask;
 
 internal sealed class FullOrderBookProcessor
 {
-    private readonly LongStateMap<FullOrderState> _activeOrders;
+    private readonly LongStateMap<ulong> _activeOrders;
     private readonly int[] _bidCountByPrice;
     private readonly int[] _bidQtyByPrice;
     private readonly int[] _askCountByPrice;
@@ -23,7 +23,7 @@ internal sealed class FullOrderBookProcessor
     public FullOrderBookProcessor(int maxPrice, int expectedOrderCapacity)
     {
         _maxPrice = maxPrice;
-        _activeOrders = new LongStateMap<FullOrderState>(expectedOrderCapacity);
+        _activeOrders = new LongStateMap<ulong>(expectedOrderCapacity);
         _bidCountByPrice = new int[maxPrice + 1];
         _bidQtyByPrice = new int[maxPrice + 1];
         _askCountByPrice = new int[maxPrice + 1];
@@ -65,8 +65,13 @@ internal sealed class FullOrderBookProcessor
         _bestAsk = -1;
     }
 
-    public void Process(Tick[] ticks, FullResultArrays results)
+    public void Process(Tick[] ticks, FullResultRow[] results)
     {
+        var bidQty = _bidQtyByPrice;
+        var bidCount = _bidCountByPrice;
+        var askQty = _askQtyByPrice;
+        var askCount = _askCountByPrice;
+
         for (var i = 0; i < ticks.Length; i++)
         {
             ref readonly var tick = ref ticks[i];
@@ -89,30 +94,32 @@ internal sealed class FullOrderBookProcessor
                 ClearBook();
             }
 
-            if (_bestBid == -1)
+            int bb = _bestBid;
+            if (bb == -1)
             {
-                results.BestBidByTick[i] = -1;
-                results.BestBidQtyByTick[i] = 0;
-                results.BestBidCountByTick[i] = 0;
+                results[i].B0 = -1;
+                results[i].BQ0 = 0;
+                results[i].BN0 = 0;
             }
             else
             {
-                results.BestBidByTick[i] = _bestBid;
-                results.BestBidQtyByTick[i] = _bidQtyByPrice[_bestBid];
-                results.BestBidCountByTick[i] = _bidCountByPrice[_bestBid];
+                results[i].B0 = bb;
+                results[i].BQ0 = bidQty[bb];
+                results[i].BN0 = bidCount[bb];
             }
 
-            if (_bestAsk == -1)
+            int ba = _bestAsk;
+            if (ba == -1)
             {
-                results.BestAskByTick[i] = -1;
-                results.BestAskQtyByTick[i] = 0;
-                results.BestAskCountByTick[i] = 0;
+                results[i].A0 = -1;
+                results[i].AQ0 = 0;
+                results[i].AN0 = 0;
             }
             else
             {
-                results.BestAskByTick[i] = _bestAsk;
-                results.BestAskQtyByTick[i] = _askQtyByPrice[_bestAsk];
-                results.BestAskCountByTick[i] = _askCountByPrice[_bestAsk];
+                results[i].A0 = ba;
+                results[i].AQ0 = askQty[ba];
+                results[i].AN0 = askCount[ba];
             }
         }
     }
@@ -124,14 +131,14 @@ internal sealed class FullOrderBookProcessor
         if (exists)
         {
             var oldState = stateRef;
-            var oldSide = oldState.Side;
-            var oldPrice = oldState.Price;
-            var oldQty = oldState.Qty;
+            var isAsk = StatePacker.IsFullAsk(oldState);
+            var oldPrice = StatePacker.GetFullPrice(oldState);
+            var oldQty = StatePacker.GetFullQty(oldState);
 
             var needRepairOldBid = false;
             var needRepairOldAsk = false;
 
-            if (oldSide == Constants.SideBid)
+            if (!isAsk)
             {
                 _bidCountByPrice[oldPrice]--;
                 _bidQtyByPrice[oldPrice] -= oldQty;
@@ -140,7 +147,7 @@ internal sealed class FullOrderBookProcessor
                     needRepairOldBid = true;
                 }
             }
-            else if (oldSide == Constants.SideAsk)
+            else
             {
                 _askCountByPrice[oldPrice]--;
                 _askQtyByPrice[oldPrice] -= oldQty;
@@ -150,7 +157,7 @@ internal sealed class FullOrderBookProcessor
                 }
             }
 
-            stateRef = new FullOrderState(newSide, newPrice, newQty);
+            stateRef = StatePacker.PackFullState(newSide, newPrice, newQty);
 
             if (newSide == Constants.SideBid)
             {
@@ -207,7 +214,7 @@ internal sealed class FullOrderBookProcessor
         }
         else
         {
-            stateRef = new FullOrderState(newSide, newPrice, newQty);
+            stateRef = StatePacker.PackFullState(newSide, newPrice, newQty);
 
             if (newSide == Constants.SideBid)
             {
@@ -246,11 +253,11 @@ internal sealed class FullOrderBookProcessor
             return;
         }
 
-        var side = state.Side;
-        var price = state.Price;
-        var qty = state.Qty;
+        var isAsk = StatePacker.IsFullAsk(state);
+        var price = StatePacker.GetFullPrice(state);
+        var qty = StatePacker.GetFullQty(state);
 
-        if (side == Constants.SideBid)
+        if (!isAsk)
         {
             _bidCountByPrice[price]--;
             _bidQtyByPrice[price] -= qty;
@@ -264,7 +271,7 @@ internal sealed class FullOrderBookProcessor
                 _bestBid = p;
             }
         }
-        else if (side == Constants.SideAsk)
+        else
         {
             _askCountByPrice[price]--;
             _askQtyByPrice[price] -= qty;

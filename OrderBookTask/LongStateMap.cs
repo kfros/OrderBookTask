@@ -35,6 +35,7 @@ internal sealed class LongStateMap<TState> where TState : struct
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static int Hash(long key)
     {
+        // Fast shift-xor mixer for 64-bit integer keys
         ulong x = (ulong)key;
         return (int)(x ^ (x >> 32));
     }

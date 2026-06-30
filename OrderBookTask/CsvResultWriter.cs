@@ -32,7 +32,7 @@ internal sealed class CsvResultWriter
         }
     }
 
-    public void WriteFull(string outputPath, Tick[] ticks, FullResultArrays results)
+    public void WriteFull(string outputPath, Tick[] ticks, FullResultRow[] results)
     {
         using var writer = new StreamWriter(outputPath);
         writer.WriteLine(Constants.OutputHeader);
@@ -53,7 +53,7 @@ internal sealed class CsvResultWriter
             writer.Write(tick.Qty.ToString(CultureInfo.InvariantCulture));
             writer.Write(';');
 
-            var b0 = results.BestBidByTick[i];
+            var b0 = results[i].B0;
             if (b0 == Constants.EmptyPriceSentinel)
             {
                 writer.Write(";;;");
@@ -62,13 +62,13 @@ internal sealed class CsvResultWriter
             {
                 writer.Write(b0.ToString(CultureInfo.InvariantCulture));
                 writer.Write(';');
-                writer.Write(results.BestBidQtyByTick[i].ToString(CultureInfo.InvariantCulture));
+                writer.Write(results[i].BQ0.ToString(CultureInfo.InvariantCulture));
                 writer.Write(';');
-                writer.Write(results.BestBidCountByTick[i].ToString(CultureInfo.InvariantCulture));
+                writer.Write(results[i].BN0.ToString(CultureInfo.InvariantCulture));
                 writer.Write(';');
             }
 
-            var a0 = results.BestAskByTick[i];
+            var a0 = results[i].A0;
             if (a0 == Constants.EmptyPriceSentinel)
             {
                 writer.Write(";;");
@@ -77,9 +77,9 @@ internal sealed class CsvResultWriter
             {
                 writer.Write(a0.ToString(CultureInfo.InvariantCulture));
                 writer.Write(';');
-                writer.Write(results.BestAskQtyByTick[i].ToString(CultureInfo.InvariantCulture));
+                writer.Write(results[i].AQ0.ToString(CultureInfo.InvariantCulture));
                 writer.Write(';');
-                writer.Write(results.BestAskCountByTick[i].ToString(CultureInfo.InvariantCulture));
+                writer.Write(results[i].AN0.ToString(CultureInfo.InvariantCulture));
             }
             writer.WriteLine();
         }

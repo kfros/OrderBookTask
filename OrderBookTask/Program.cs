@@ -8,10 +8,15 @@ using OrderBookTask;
 var mode = "optimized";
 string? explicitInputPath = null;
 var positionalArgsList = new List<string>();
+var selfTest = false;
 
 for (var i = 0; i < args.Length; i++)
 {
-    if (args[i] == "--mode")
+    if (args[i] == "--self-test")
+    {
+        selfTest = true;
+    }
+    else if (args[i] == "--mode")
     {
         if (i + 1 < args.Length)
         {
@@ -46,6 +51,12 @@ for (var i = 0; i < args.Length; i++)
 }
 
 var positionalArgs = positionalArgsList.ToArray();
+
+if (selfTest)
+{
+    SelfTests.Run();
+    return 0;
+}
 
 if (mode != "optimized" && mode != "full")
 {
@@ -156,7 +167,7 @@ if (mode == "optimized")
 }
 else // mode == "full"
 {
-    var results = new FullResultArrays(readResult.TickCount);
+    var results = new FullResultRow[readResult.TickCount];
     var processor = new FullOrderBookProcessor(readResult.MaxPrice, readResult.TickCount);
     var benchmark = benchmarkRunner.Run(
         processor,

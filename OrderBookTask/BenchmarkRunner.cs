@@ -35,7 +35,7 @@ internal sealed class BenchmarkRunner
     public BenchmarkResult Run(
         FullOrderBookProcessor processor,
         Tick[] ticks,
-        FullResultArrays results,
+        FullResultRow[] results,
         int warmupRuns,
         int measuredRuns)
     {

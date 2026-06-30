@@ -112,7 +112,7 @@ internal sealed class SampleValidator
     public void ValidateFullResult(
         string sampleResultPath,
         Tick[] ticks,
-        FullResultArrays results,
+        FullResultRow[] results,
         int rowCount)
     {
         using var reader = new StreamReader(sampleResultPath);
@@ -165,19 +165,19 @@ internal sealed class SampleValidator
             if (tick.Qty != qty)
                 throw new InvalidDataException($"Mismatch at index {i} (row {i + 2}): Qty expected {qty}, got {tick.Qty}");
 
-            if (results.BestBidByTick[i] != b0)
-                throw new InvalidDataException($"Mismatch at index {i} (row {i + 2}): B0 expected {b0}, got {results.BestBidByTick[i]}");
-            if (results.BestBidQtyByTick[i] != bq0)
-                throw new InvalidDataException($"Mismatch at index {i} (row {i + 2}): BQ0 expected {bq0}, got {results.BestBidQtyByTick[i]}");
-            if (results.BestBidCountByTick[i] != bn0)
-                throw new InvalidDataException($"Mismatch at index {i} (row {i + 2}): BN0 expected {bn0}, got {results.BestBidCountByTick[i]}");
+            if (results[i].B0 != b0)
+                throw new InvalidDataException($"Mismatch at index {i} (row {i + 2}): B0 expected {b0}, got {results[i].B0}");
+            if (results[i].BQ0 != bq0)
+                throw new InvalidDataException($"Mismatch at index {i} (row {i + 2}): BQ0 expected {bq0}, got {results[i].BQ0}");
+            if (results[i].BN0 != bn0)
+                throw new InvalidDataException($"Mismatch at index {i} (row {i + 2}): BN0 expected {bn0}, got {results[i].BN0}");
 
-            if (results.BestAskByTick[i] != a0)
-                throw new InvalidDataException($"Mismatch at index {i} (row {i + 2}): A0 expected {a0}, got {results.BestAskByTick[i]}");
-            if (results.BestAskQtyByTick[i] != aq0)
-                throw new InvalidDataException($"Mismatch at index {i} (row {i + 2}): AQ0 expected {aq0}, got {results.BestAskQtyByTick[i]}");
-            if (results.BestAskCountByTick[i] != an0)
-                throw new InvalidDataException($"Mismatch at index {i} (row {i + 2}): AN0 expected {an0}, got {results.BestAskCountByTick[i]}");
+            if (results[i].A0 != a0)
+                throw new InvalidDataException($"Mismatch at index {i} (row {i + 2}): A0 expected {a0}, got {results[i].A0}");
+            if (results[i].AQ0 != aq0)
+                throw new InvalidDataException($"Mismatch at index {i} (row {i + 2}): AQ0 expected {aq0}, got {results[i].AQ0}");
+            if (results[i].AN0 != an0)
+                throw new InvalidDataException($"Mismatch at index {i} (row {i + 2}): AN0 expected {an0}, got {results[i].AN0}");
         }
     }
 }

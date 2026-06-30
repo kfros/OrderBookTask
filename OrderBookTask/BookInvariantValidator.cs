@@ -44,7 +44,7 @@ internal sealed class BookInvariantValidator
         return checkedTicks;
     }
 
-    public int ValidateValidBookInterval(Tick[] ticks, FullResultArrays results)
+    public int ValidateValidBookInterval(Tick[] ticks, FullResultRow[] results)
     {
         int checkedTicks = 0;
         for (int i = 0; i < ticks.Length; i++)
@@ -52,8 +52,8 @@ internal sealed class BookInvariantValidator
             long sourceTime = ticks[i].SourceTime;
             if (sourceTime >= Constants.ValidBookSourceTimeFrom && sourceTime <= Constants.ValidBookSourceTimeTo)
             {
-                int b0 = results.BestBidByTick[i];
-                int a0 = results.BestAskByTick[i];
+                int b0 = results[i].B0;
+                int a0 = results[i].A0;
 
                 if (b0 == Constants.EmptyPriceSentinel)
                 {

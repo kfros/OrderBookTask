@@ -4,3 +4,4 @@
 OrderBookTask/bin/*
 OrderBookTask/obj/*
 .fake
+OrderBookTask/ticks_result.csv
