@@ -5,7 +5,7 @@ using System.IO;
 using OrderBookTask;
 
 // Parse named options (--mode <optimized|full>, --input <path>, -i <path>) first, then map remaining args to file paths
-var mode = "optimized";
+var mode = "full";
 string? explicitInputPath = null;
 var positionalArgsList = new List<string>();
 var selfTest = false;
