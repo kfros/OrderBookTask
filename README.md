@@ -6,12 +6,13 @@ Z katalogu głównego rozwiązania:
 
 ```powershell
 dotnet build -c Release
-cd OrderBookTask\bin\Release\net8.0
-OrderBookTask.exe
 ```
 
 ## Uruchomienie
-
+```powershell
+cd OrderBookTask\bin\Release\net8.0
+OrderBookTask.exe
+```powershell
 Aplikacja domyślnie oczekuje pliku `ticks.raw` w tym samym katalogu co plik wykonywalny `OrderBookTask.exe`. Pliki `ticks.raw`, `ticks_sample.csv` i `ticks_result_sample.csv` są kopiowane do katalogu wynikowego podczas budowania projektu.
 
 ### Tryb domyślny - zoptymalizowany
@@ -130,13 +131,12 @@ aby zachować maksymalnie lekki hot path dla wariantu zoptymalizowanego.
 * gęste tablice poziomów cenowych zamiast struktur drzewiastych
 * cache aktualnego B0/A0
 * touched-price clearing podczas resetu i czyszczenia karnetu
-* CollectionsMarshal.GetValueRefOrAddDefault w ścieżce upsert
+* własna, stałopozycyjna mapa haszująca z adresowaniem otwartym (LongStateMap) dla aktywnych zleceń (zastępująca Dictionary)
 * kolejność obsługi akcji dopasowana do rozkładu danych
 * oddzielne procesory dla trybu optimized i full
 
 ## Dalsze możliwe optymalizacje
 
-* własna mapa haszująca dla long, np. płaska mapa z adresowaniem otwartym
 * pakowanie stanu zlecenia, np. Side i Price w jednym polu liczbowym
 * sparse fallback dla przyszłych datasetów z bardzo dużym zakresem cen
 * osobne mikrobenchmarki, np. BenchmarkDotNet, dla dokładniejszej analizy hot path

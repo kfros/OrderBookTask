@@ -7,7 +7,7 @@ namespace OrderBookTask;
 
 internal sealed class OrderBookProcessor
 {
-    private readonly Dictionary<long, OrderState> _activeOrders;
+    private readonly LongStateMap<OrderState> _activeOrders;
     private readonly int[] _bidCountByPrice;
     private readonly int[] _askCountByPrice;
     private readonly int[] _touchedBidPrices;
@@ -21,7 +21,7 @@ internal sealed class OrderBookProcessor
     public OrderBookProcessor(int maxPrice, int expectedOrderCapacity)
     {
         _maxPrice = maxPrice;
-        _activeOrders = new Dictionary<long, OrderState>(expectedOrderCapacity);
+        _activeOrders = new LongStateMap<OrderState>(expectedOrderCapacity);
         _bidCountByPrice = new int[maxPrice + 1];
         _askCountByPrice = new int[maxPrice + 1];
         _touchedBidPrices = new int[expectedOrderCapacity];
@@ -89,7 +89,7 @@ internal sealed class OrderBookProcessor
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private void ProcessUpsert(long orderId, byte newSide, int newPrice)
     {
-        ref var stateRef = ref CollectionsMarshal.GetValueRefOrAddDefault(_activeOrders, orderId, out var exists);
+        ref var stateRef = ref _activeOrders.GetValueRefOrAddDefault(orderId, out var exists);
         if (exists)
         {
             var oldState = stateRef;
